@@ -1587,7 +1587,8 @@ function importExtCSV(text){
         t:r.Titre||r.Serie||'', e:r.Editeur||'', c:r.Cote||'',
         sc:r.Scenariste||'', d:r.Dessinateur||r.Scenariste||'',
         g:'AUTRES / IND\u00c9', dl:r.DL||'', w:0,
-        _ext:extSrc, _manual:true, _added:r.DateAchat||''
+        _ext:extSrc, _manual:true, _added:r.DateAchat||'',
+        u:(r.Perso1||'').trim()
       });
     }else{
       csvAlbums.push({
@@ -1595,7 +1596,8 @@ function importExtCSV(text){
         t:r.Titre||'', e:r.Editeur||'', c:r.Cote||'',
         sc:r.Scenariste||'', d:r.Dessinateur||'',
         g:classifyGenre(r.Editeur,r.IdAlbum),
-        dl:r.DL||'', w:0, _ext:extSrc
+        dl:r.DL||'', w:0, _ext:extSrc,
+        u:(r.Perso1||'').trim()
       });
     }
   });
@@ -2290,10 +2292,17 @@ function setView(v){
 // ── Liste de tous les cartons (BD + objets) ──────────────────────────────
 function getAllCartons(){
   var cartons={};
-  // BD : champ u (Perso1)
+  // BD collection principale : champ u (Perso1)
   DATA.forEach(function(a){
     var c=(a.u||'').trim();
     if(c){if(!cartons[c])cartons[c]={name:c,bd:[],obj:[]};cartons[c].bd.push(a);}
+  });
+  // BD collections externes (Médiathèque/Copains) : champ u (Perso1)
+  ['med','cop'].forEach(function(src){
+    EXT_DATA[src].forEach(function(a){
+      var c=(a.u||'').trim();
+      if(c){if(!cartons[c])cartons[c]={name:c,bd:[],obj:[]};cartons[c].bd.push(a);}
+    });
   });
   // Objets
   OBJECTS.forEach(function(o){
@@ -2425,7 +2434,7 @@ function renderCartons(){
     if(open){
       html+='<div class="carton-content" style="max-height:none">';
       c.bd.sort(function(a,b){return ((a.s||a.t)+(a.n||'')).localeCompare((b.s||b.t)+(b.n||''));});
-      c.bd.forEach(function(a){html+='<div class="ci">\ud83d\udcd6 '+esc(a.s||a.t)+(a.n?' T.'+a.n:'')+(a.t&&a.s?' \u2014 '+esc(a.t):'')+'</div>';});
+      c.bd.forEach(function(a){html+='<div class="ci">\ud83d\udcd6 '+esc(a.s||a.t)+(a.n?' T.'+a.n:'')+(a.t&&a.s?' \u2014 '+esc(a.t):'')+(a._ext?' <span style="opacity:.5;font-size:11px">('+EXT_LABELS[a._ext]+')</span>':'')+'</div>';});
       c.obj.forEach(function(o){html+='<div class="ci">\ud83e\udde9 '+esc(o.nom)+(o.serie?' ('+esc(o.serie)+')':'')+(o.marque?' \u00b7 '+esc(o.marque):'')+'</div>';});
       html+='</div>';
     }
@@ -2477,43 +2486,11 @@ function showCartonLink(name){
 }
 
 function openCartonPage(name){
-  var cartons=getAllCartons();
-  var c=cartons[name];
-  if(!c)return;
-  var total=c.bd.length+c.obj.length;
-  // Construire le HTML de la page
-  function esc2(s){return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-  var bdSorted=c.bd.slice().sort(function(a,b){return ((a.s||a.t)+(a.n||'')).localeCompare((b.s||b.t)+(b.n||''));});
-  var rows='';
-  bdSorted.forEach(function(a){
-    rows+='<tr><td class="ic">\ud83d\udcd6</td><td>'+esc2(a.s||a.t)+(a.n?' <b>T.'+esc2(a.n)+'</b>':'')+'</td><td class="ti">'+(a.s&&a.t?esc2(a.t):'')+'</td></tr>';
-  });
-  c.obj.forEach(function(o){
-    rows+='<tr><td class="ic">\ud83e\udde9</td><td>'+esc2(o.nom)+'</td><td class="ti">'+esc2([o.serie,o.marque].filter(Boolean).join(' \u00b7 '))+'</td></tr>';
-  });
-  var page='<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">'
-    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
-    +'<title>Carton '+esc2(name)+' \u2014 Ma Collection BD</title><style>'
-    +'*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;margin:0;padding:30px;background:#f5f0e6;color:#2a1a0a}'
-    +'.wrap{max-width:800px;margin:0 auto}'
-    +'h1{font-size:28px;margin:0 0 6px}.sub{color:#8a6a40;font-size:15px;margin-bottom:24px}'
-    +'table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,.08)}'
-    +'td{padding:9px 14px;border-bottom:1px solid #f0e9da;font-size:14px;vertical-align:top}'
-    +'tr:last-child td{border-bottom:none}.ic{width:30px;text-align:center}.ti{color:#9a7a50;font-size:13px}'
-    +'.toolbar{margin-bottom:20px;display:flex;gap:10px}'
-    +'button{padding:9px 18px;border-radius:8px;border:none;background:#5a3010;color:#f0dfc0;font-size:14px;font-weight:600;cursor:pointer}'
-    +'button:hover{opacity:.9}'
-    +'@media print{body{background:#fff;padding:10px}.toolbar{display:none}table{box-shadow:none}h1{font-size:22px}}'
-    +'</style></head><body><div class="wrap">'
-    +'<div class="toolbar"><button onclick="window.print()">\ud83d\udda8\ufe0f Imprimer</button></div>'
-    +'<h1>\ud83d\udce6 Carton '+esc2(name)+'</h1>'
-    +'<div class="sub">'+total+' \u00e9l\u00e9ment'+(total>1?'s':'')+' \u00b7 '+c.bd.length+' BD'+(c.obj.length?' \u00b7 '+c.obj.length+' objet'+(c.obj.length>1?'s':''):'')+'</div>'
-    +'<table>'+rows+'</table>'
-    +'<div style="margin-top:20px;font-size:11px;opacity:.4">Ma Collection BD \u2014 '+new Date().toLocaleDateString('fr-FR')+'</div>'
-    +'</div></body></html>';
-  var w=window.open('','_blank');
-  if(w){w.document.open();w.document.write(page);w.document.close();}
-  else{alert('Le navigateur a bloqu\u00e9 la nouvelle fen\u00eatre. Autorise les pop-ups pour ce site.');}
+  // Ouvre l'appli dans un nouvel onglet avec le hash du carton
+  // → vraie URL, Chrome peut faire "Créer un QR code" dessus
+  var base=window.location.href.split('#')[0];
+  var url=base+'#carton='+encodeURIComponent(name);
+  window.open(url,'_blank');
 }
 
 var _openCartons={};
